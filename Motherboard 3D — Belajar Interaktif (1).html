@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Motherboard 3D — Belajar Interaktif</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b1220; --panel:#101a2e; --panel2:#0d1626;
+    --pcb:#173a2b; --pcb-line:#2f6b4d;
+    --copper:#c9a227; --copper-soft:#e3c766;
+    --text:#e9edf3; --muted:#8a97ab;
+    --border:#22304a;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+    box-sizing:border-box;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.mono-label{font-family:'Space Grotesk',sans-serif}
+  .spec{font-family:'JetBrains Mono',monospace}
+
+  header{
+    padding:28px clamp(16px,4vw,48px) 18px;
+    border-bottom:1px solid var(--border);
+  }
+  header h1{font-size:clamp(22px,3.4vw,32px);margin:0 0 6px;font-weight:700;letter-spacing:-0.01em}
+  header p{margin:0;color:var(--muted);max-width:640px;font-size:14.5px;line-height:1.55}
+
+  main{
+    display:flex; flex-wrap:wrap;
+    max-width:1280px; margin:0 auto;
+    padding:clamp(16px,3vw,32px);
+    gap:24px;
+  }
+  .viewer-col{flex:1 1 520px; min-width:300px;}
+  .info-col{flex:1 1 340px; min-width:280px;}
+
+  #canvas-wrap{
+    position:relative; aspect-ratio:4/3; width:100%;
+    background:radial-gradient(circle at 30% 20%, #14213a, #0a1120 70%);
+    border:1px solid var(--border); border-radius:6px; overflow:hidden;
+    touch-action:none; cursor:grab;
+  }
+  #canvas-wrap.dragging{cursor:grabbing}
+  #canvas-wrap canvas{display:block; width:100%; height:100%;}
+
+  .hint{
+    position:absolute; bottom:10px; left:12px; right:12px;
+    display:flex; justify-content:space-between; align-items:center;
+    font-size:12px; color:var(--muted); pointer-events:none;
+  }
+  .toolbar{
+    display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap;
+  }
+  .toolbar button, .toolbar label{
+    font-family:'JetBrains Mono',monospace; font-size:12.5px;
+    background:var(--panel); border:1px solid var(--border); color:var(--text);
+    padding:7px 12px; border-radius:4px; cursor:pointer; display:flex; align-items:center; gap:6px;
+  }
+  .toolbar button:hover{border-color:var(--copper)}
+  .toolbar input[type=checkbox]{accent-color:var(--copper)}
+
+  .panel{
+    background:var(--panel); border:1px solid var(--border); border-radius:6px;
+    padding:18px 18px 6px;
+  }
+  .panel h2{font-size:17px; margin:0 0 4px; color:var(--copper-soft)}
+  .panel .desc{font-size:13.8px; line-height:1.6; color:#c7d0dd; margin:0 0 16px;}
+  .placeholder{color:var(--muted); font-size:13.5px;}
+
+  .component-list{list-style:none; margin:0; padding:0;}
+  .component-list li{
+    border-top:1px solid var(--border);
+    padding:11px 2px; cursor:pointer;
+    display:flex; justify-content:space-between; align-items:center;
+    font-size:13.5px; transition:background .15s;
+  }
+  .component-list li:hover{background:var(--panel2)}
+  .component-list li.active{color:var(--copper-soft)}
+  .component-list li .tag{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted)}
+
+  section.article{
+    max-width:1280px; margin:0 auto; padding:0 clamp(16px,3vw,32px) 60px;
+  }
+  section.article h2{font-size:20px; margin:34px 0 10px;}
+  section.article p{font-size:14.5px; line-height:1.75; color:#c7d0dd; max-width:74ch;}
+  section.article ul{color:#c7d0dd; font-size:14.5px; line-height:1.8; max-width:74ch; padding-left:20px;}
+
+  @media (prefers-color-scheme:light){
+    :root:not([data-theme="dark"]){
+      --bg:#f5f6f8; --panel:#ffffff; --panel2:#eef1f5; --text:#151a23; --muted:#5b6472; --border:#dfe3ea;
+    }
+    section.article p, section.article ul, .panel .desc{color:#3c4552}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Anatomi Motherboard, Secara 3D</h1>
+  <p>Putar model di bawah untuk melihat papan sirkuit utama komputer dari segala sudut, lalu klik tiap komponen untuk mempelajari fungsinya.</p>
+</header>
+
+<main>
+  <div class="viewer-col">
+    <div id="canvas-wrap">
+      <div class="hint"><span id="pick-hint">Seret untuk memutar · klik komponen untuk info</span><span id="fps"></span></div>
+    </div>
+    <div class="toolbar">
+      <button id="reset-btn">↺ Reset sudut pandang</button>
+      <label><input type="checkbox" id="auto-rotate" checked> Putar otomatis</label>
+      <label><input type="checkbox" id="show-flow" checked> Animasikan jalur data</label>
+    </div>
+  </div>
+
+  <div class="info-col">
+    <div class="panel" id="info-panel">
+      <h2 id="info-title">Pilih komponen</h2>
+      <p class="desc placeholder" id="info-desc">Klik salah satu bagian pada model 3D, atau pilih dari daftar di bawah, untuk melihat penjelasannya di sini.</p>
+      <ul class="component-list" id="component-list"></ul>
+    </div>
+  </div>
+</main>
+
+<section class="article">
+  <h2>Apa itu motherboard?</h2>
+  <p>Motherboard (papan induk) adalah papan sirkuit utama dalam sebuah komputer yang menghubungkan dan memungkinkan komunikasi antara semua komponen perangkat keras: prosesor, memori, penyimpanan, kartu grafis, hingga port eksternal. Semua komponen lain dipasang ke, atau dihubungkan lewat, motherboard.</p>
+  <h2>Kenapa strukturnya penting dipahami?</h2>
+  <ul>
+    <li>Menentukan komponen apa saja yang kompatibel dengan sistem (jenis soket CPU, tipe RAM, jumlah slot ekspansi).</li>
+    <li>Mempengaruhi performa dan jalur data antar komponen lewat chipset.</li>
+    <li>Menjadi acuan saat merakit, upgrade, atau menelusuri masalah (troubleshooting) pada komputer.</li>
+  </ul>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  const wrap = document.getElementById('canvas-wrap');
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, wrap.clientWidth/wrap.clientHeight, 0.1, 100);
+  camera.position.set(0, 5.5, 8.5);
+  camera.lookAt(0, 0, 0);
+  const renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+  wrap.appendChild(renderer.domElement);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const key = new THREE.DirectionalLight(0xffffff, 1.0); key.position.set(4,6,5); scene.add(key);
+  const rim = new THREE.DirectionalLight(0x6688ff, 0.5); rim.position.set(-5,3,-4); scene.add(rim);
+  const fill = new THREE.DirectionalLight(0xfff2d9, 0.3); fill.position.set(2,2,-6); scene.add(fill);
+
+  const board = new THREE.Group();
+  scene.add(board);
+
+  // --- Procedural PCB texture (fiberglass green + faint copper traces) ---
+  function makePCBTexture(){
+    const c = document.createElement('canvas'); c.width = c.height = 1024;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#123a29'; ctx.fillRect(0,0,1024,1024);
+    ctx.strokeStyle = 'rgba(200,230,210,0.05)'; ctx.lineWidth = 1;
+    for(let i=0;i<40;i++){ ctx.beginPath(); ctx.moveTo(0,i*25.6+ (Math.random()*4)); ctx.lineTo(1024,i*25.6+(Math.random()*4)); ctx.stroke(); }
+    ctx.strokeStyle = 'rgba(180,150,60,0.22)';
+    for(let i=0;i<90;i++){
+      ctx.lineWidth = Math.random()*2+0.5;
+      const x1=Math.random()*1024,y1=Math.random()*1024;
+      const horiz = Math.random()>0.5;
+      ctx.beginPath(); ctx.moveTo(x1,y1);
+      if(horiz){ ctx.lineTo(x1+ (Math.random()*140-70), y1); ctx.lineTo(x1+(Math.random()*140-70), y1+(Math.random()*100-50)); }
+      else { ctx.lineTo(x1, y1+(Math.random()*140-70)); ctx.lineTo(x1+(Math.random()*100-50), y1+(Math.random()*140-70)); }
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(210,180,90,0.35)';
+    for(let i=0;i<55;i++){ const x=Math.random()*1024,y=Math.random()*1024,s=Math.random()*4+2; ctx.fillRect(x,y,s,s); }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  }
+  const pcbTexture = makePCBTexture();
+
+  const COMPONENTS = [];
+  function addPart(id, name, desc, geo, mat, pos, tag){
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(...pos);
+    mesh.userData = {id, name, desc, baseColor: mat.color.getHex(), tag};
+    board.add(mesh);
+    COMPONENTS.push(mesh);
+    return mesh;
+  }
+
+  // PCB base
+  addPart('pcb','Papan PCB (Printed Circuit Board)',
+    'Lapisan dasar berwarna hijau ini terbuat dari fiberglass dengan jalur tembaga (trace) tercetak di dalamnya, yang menjadi "kabel" penghubung listrik antar semua komponen di atasnya.',
+    new THREE.BoxGeometry(7.2,0.15,6.4),
+    new THREE.MeshStandardMaterial({map:pcbTexture, roughness:0.75, metalness:0.05}),
+    [0,0,0], 'PCB');
+
+  // Screw holes (decorative, tidak diklik)
+  [[3.35,2.85],[-3.35,2.85],[3.35,-2.85],[-3.35,-2.85]].forEach(([x,z])=>{
+    const hole = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.03,16),
+      new THREE.MeshStandardMaterial({color:0xcfd3d8, metalness:0.7, roughness:0.35}));
+    hole.position.set(x,0.09,z); board.add(hole);
+  });
+
+  // CPU socket
+  addPart('cpu','Soket CPU',
+    'Tempat prosesor (otak komputer) dipasang. Bentuk dan jumlah pin soket ini harus sesuai dengan jenis prosesor yang digunakan.',
+    new THREE.BoxGeometry(1.3,0.18,1.3),
+    new THREE.MeshStandardMaterial({color:0x24262b, roughness:0.35, metalness:0.4}),
+    [-0.8,0.17,-0.6], 'CPU');
+
+  // Kapasitor (VRM) mengelilingi soket CPU
+  const capMat = new THREE.MeshStandardMaterial({color:0xd7dade, metalness:0.65, roughness:0.3});
+  const capAngles = [0,60,120,180,240,300];
+  capAngles.forEach((deg,i)=>{
+    const rad = deg*Math.PI/180;
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.2,12), capMat);
+    cap.position.set(-0.8+Math.cos(rad)*0.95, 0.19, -0.6+Math.sin(rad)*0.95);
+    cap.userData = {id:'cap', name:'Kapasitor', desc:'Komponen kecil berbentuk tabung yang menyimpan dan menyaring arus listrik agar tegangan yang masuk ke prosesor tetap stabil, mengurangi gangguan (noise) pada sirkuit daya.', tag:'CAP'};
+    board.add(cap); COMPONENTS.push(cap);
+  });
+
+  // Heatsink VRM (pembuang panas regulator tegangan) di samping soket CPU
+  const heatsinkMat = new THREE.MeshStandardMaterial({color:0xb9bec7, metalness:0.8, roughness:0.25});
+  const hsBase = new THREE.Mesh(new THREE.BoxGeometry(1.0,0.22,1.7), heatsinkMat);
+  hsBase.position.set(-2.35,0.11,-1.1);
+  hsBase.userData = {id:'vrm', name:'Heatsink VRM', desc:'Blok logam bersirip yang menyerap dan membuang panas dari VRM (Voltage Regulator Module) — sirkuit yang mengubah tegangan dari power supply menjadi tegangan yang tepat untuk prosesor.', tag:'VRM'};
+  board.add(hsBase); COMPONENTS.push(hsBase);
+  for(let i=0;i<7;i++){
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.32,0.08), heatsinkMat);
+    fin.position.set(-2.35, 0.33, -1.1-0.75+i*0.25);
+    fin.userData = hsBase.userData;
+    board.add(fin); COMPONENTS.push(fin);
+  }
+
+  // RAM slots
+  for(let i=0;i<4;i++){
+    addPart('ram'+i, 'Slot RAM #'+(i+1),
+      'Tempat memasang modul memori (RAM) yang menyimpan data sementara agar prosesor bisa mengaksesnya dengan sangat cepat selama komputer menyala.',
+      new THREE.BoxGeometry(0.32,0.5,3.2),
+      new THREE.MeshStandardMaterial({color:0x111827, roughness:0.5}),
+      [1.7+i*0.42, 0.32, -0.2], 'RAM');
+  }
+
+  // Chipset (dengan heatsink kecil di atasnya)
+  addPart('chipset','Chipset',
+    'Sirkuit terpadu yang mengatur lalu lintas data antara prosesor, memori, penyimpanan, dan port-port lain — sering disebut sebagai "pengatur lalu lintas" motherboard.',
+    new THREE.BoxGeometry(0.9,0.16,0.9),
+    new THREE.MeshStandardMaterial({color:0x555a66, roughness:0.3, metalness:0.5}),
+    [-0.6,0.16,1.6], 'CHIPSET');
+  for(let i=0;i<4;i++){
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.78,0.14,0.06), heatsinkMat);
+    fin.position.set(-0.6, 0.31, 1.6-0.3+i*0.2);
+    fin.userData = {id:'chipset', name:'Chipset', desc:'Sirkuit terpadu yang mengatur lalu lintas data antara prosesor, memori, penyimpanan, dan port-port lain — sering disebut sebagai "pengatur lalu lintas" motherboard.', tag:'CHIPSET'};
+    board.add(fin); COMPONENTS.push(fin);
+  }
+
+  // Slot M.2 (untuk SSD NVMe)
+  const m2Base = new THREE.Mesh(new THREE.BoxGeometry(0.4,0.05,1.6),
+    new THREE.MeshStandardMaterial({color:0x0d1117, roughness:0.5}));
+  m2Base.position.set(0.55,0.05,-2.3);
+  m2Base.userData = {id:'m2', name:'Slot M.2', desc:'Slot berkecepatan tinggi untuk memasang SSD NVMe berbentuk kartu memori kecil, jauh lebih cepat dibanding SSD/HDD yang tersambung lewat kabel SATA.', tag:'M.2'};
+  board.add(m2Base); COMPONENTS.push(m2Base);
+  const m2Connector = new THREE.Mesh(new THREE.BoxGeometry(0.42,0.06,0.15),
+    new THREE.MeshStandardMaterial({color:0xd8b23a, metalness:0.7, roughness:0.3}));
+  m2Connector.position.set(0.55,0.06,-3.02);
+  m2Connector.userData = m2Base.userData;
+  board.add(m2Connector); COMPONENTS.push(m2Connector);
+
+  // PCIe slots
+  for(let i=0;i<2;i++){
+    addPart('pcie'+i, 'Slot PCIe #'+(i+1),
+      'Slot ekspansi untuk memasang kartu tambahan seperti kartu grafis (GPU), kartu suara, atau kartu jaringan.',
+      new THREE.BoxGeometry(4.8,0.22,0.35),
+      new THREE.MeshStandardMaterial({color:0x1b1b1b, roughness:0.6}),
+      [-0.9, 0.2, 2.4+i*0.55], 'PCIe');
+  }
+
+  // SATA ports
+  for(let i=0;i<3;i++){
+    addPart('sata'+i, 'Port SATA #'+(i+1),
+      'Konektor untuk menyambungkan hard disk atau SSD ke motherboard menggunakan kabel data SATA.',
+      new THREE.BoxGeometry(0.5,0.2,0.3),
+      new THREE.MeshStandardMaterial({color:0xd8b23a, roughness:0.4, metalness:0.6}),
+      [2.9, 0.2, 1.6+i*0.4], 'SATA');
+  }
+
+  // Power connector
+  addPart('power','Konektor Daya 24-pin',
+    'Titik utama masuknya daya listrik dari power supply (PSU) ke motherboard, sehingga seluruh papan dan komponen di atasnya bisa menyala.',
+    new THREE.BoxGeometry(0.4,0.35,1.4),
+    new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.4}),
+    [3.2,0.25,-2.2], 'PWR');
+
+  // Rear I/O panel
+  addPart('io','Panel I/O Belakang',
+    'Kumpulan port di tepi motherboard (USB, HDMI, audio, LAN, dsb.) yang bisa diakses dari luar casing komputer untuk menghubungkan perangkat eksternal.',
+    new THREE.BoxGeometry(0.3,1.1,2.6),
+    new THREE.MeshStandardMaterial({color:0x8a8f99, roughness:0.5, metalness:0.4}),
+    [-3.55,0.5,-2.0], 'I/O');
+
+  // --- Trace lines (data paths) between components ---
+  const byId = {}; COMPONENTS.forEach(m=>byId[m.userData.id]=m);
+  const TRACE_LINKS = [
+    ['cpu','ram0'],['cpu','ram1'],['cpu','ram2'],['cpu','ram3'],
+    ['cpu','chipset'],
+    ['chipset','pcie0'],['chipset','pcie1'],
+    ['chipset','sata0'],['chipset','sata1'],['chipset','sata2'],
+    ['chipset','io'],['power','chipset'],['chipset','m2']
+  ];
+  const TRACE_Y = 0.09;
+  const pulses = [];
+  TRACE_LINKS.forEach(([aId,bId], idx)=>{
+    const a = byId[aId].position, b = byId[bId].position;
+    const p1 = new THREE.Vector3(a.x, TRACE_Y, a.z);
+    const p2 = new THREE.Vector3(b.x, TRACE_Y, b.z);
+    const mid = new THREE.Vector3(b.x, TRACE_Y, a.z);
+    const pts = [p1, mid, p2];
+
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({color:0xc9a227, transparent:true, opacity:0.4}));
+    board.add(line);
+
+    const seg1 = p1.distanceTo(mid), seg2 = mid.distanceTo(p2);
+    const total = seg1 + seg2 || 0.0001;
+    const pulseGeo = new THREE.SphereGeometry(0.055, 8, 8);
+    const pulseMat = new THREE.MeshBasicMaterial({color:0xffdf7e});
+    const pulse = new THREE.Mesh(pulseGeo, pulseMat);
+    pulse.position.copy(p1);
+    board.add(pulse);
+
+    pulses.push({mesh:pulse, p1, mid, p2, seg1, seg2, total, phase: idx*0.37});
+  });
+
+  function updatePulses(time){
+    const visible = document.getElementById('show-flow').checked;
+    pulses.forEach(pl=>{
+      pl.mesh.visible = visible;
+      if(!visible) return;
+      const t = ((time*0.25 + pl.phase) % 1);
+      const distAlong = t * pl.total;
+      if(distAlong <= pl.seg1){
+        pl.mesh.position.lerpVectors(pl.p1, pl.mid, pl.seg1 ? distAlong/pl.seg1 : 0);
+      } else {
+        const d2 = distAlong - pl.seg1;
+        pl.mesh.position.lerpVectors(pl.mid, pl.p2, pl.seg2 ? d2/pl.seg2 : 0);
+      }
+    });
+  }
+
+  // Populate list (dedupe by id, karena beberapa komponen terdiri dari beberapa mesh)
+  const listEl = document.getElementById('component-list');
+  const seenIds = new Set();
+  COMPONENTS.filter(m=>{
+    if(seenIds.has(m.userData.id)) return false;
+    seenIds.add(m.userData.id); return true;
+  }).forEach(m=>{
+    const li = document.createElement('li');
+    li.innerHTML = `<span>${m.userData.name}</span><span class="tag">${m.userData.tag}</span>`;
+    li.dataset.id = m.userData.id;
+    li.addEventListener('click', ()=>selectComponent(m));
+    listEl.appendChild(li);
+  });
+
+  let selected = null;
+  function selectComponent(mesh){
+    if(selected) selected.material.emissive && selected.material.emissive.setHex(0x000000);
+    selected = mesh;
+    if(mesh.material.emissive){ mesh.material.emissive.setHex(0xc9a227); mesh.material.emissiveIntensity = 0.5; }
+    document.getElementById('info-title').textContent = mesh.userData.name;
+    const d = document.getElementById('info-desc');
+    d.textContent = mesh.userData.desc;
+    d.classList.remove('placeholder');
+    document.querySelectorAll('.component-list li').forEach(li=>{
+      li.classList.toggle('active', li.dataset.id === mesh.userData.id);
+    });
+  }
+
+  // Drag to rotate
+  let dragging=false, lastX=0, lastY=0;
+  let rotY = -0.4, rotX = 0.35, autoRotate = true;
+  board.rotation.y = rotY; board.rotation.x = rotX;
+
+  function pointerPos(e){
+    const t = e.touches ? e.touches[0] : e;
+    return {x:t.clientX, y:t.clientY};
+  }
+  wrap.addEventListener('pointerdown', e=>{
+    dragging = true; wrap.classList.add('dragging');
+    const p = pointerPos(e); lastX=p.x; lastY=p.y;
+  });
+  window.addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    const p = pointerPos(e);
+    rotY += (p.x-lastX)*0.008;
+    rotX += (p.y-lastY)*0.006;
+    rotX = Math.max(-0.9, Math.min(0.9, rotX));
+    lastX=p.x; lastY=p.y;
+  });
+  window.addEventListener('pointerup', ()=>{dragging=false; wrap.classList.remove('dragging');});
+
+  wrap.addEventListener('click', e=>{
+    if(Math.abs((e.movementX||0)) > 3) return;
+    const rect = wrap.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+      ((e.clientX-rect.left)/rect.width)*2-1,
+      -((e.clientY-rect.top)/rect.height)*2+1
+    );
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(mouse, camera);
+    const hits = ray.intersectObjects(COMPONENTS);
+    if(hits.length) selectComponent(hits[0].object);
+  });
+
+  document.getElementById('reset-btn').addEventListener('click', ()=>{
+    rotY=-0.4; rotX=0.35;
+  });
+  document.getElementById('auto-rotate').addEventListener('change', e=>{
+    autoRotate = e.target.checked;
+  });
+
+  function onResize(){
+    camera.aspect = wrap.clientWidth/wrap.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+  }
+  window.addEventListener('resize', onResize);
+
+  const clock = new THREE.Clock();
+  function animate(){
+    requestAnimationFrame(animate);
+    if(autoRotate && !dragging) rotY += 0.0035;
+    board.rotation.y += (rotY-board.rotation.y)*0.15;
+    board.rotation.x += (rotX-board.rotation.x)*0.15;
+    updatePulses(clock.getElapsedTime());
+    renderer.render(scene, camera);
+  }
+  animate();
+})();
+</script>
+</body>
+</html>
